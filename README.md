@@ -1,4 +1,4 @@
-<h1 align="center">UF ddi client</h1>
+<h1 align="center">DDI Client</h1>
 <p align="center">
 <a href="https://travis-ci.org/Kynetics/uf-ddiclient"><img alt="Build Status" src="https://travis-ci.org/Kynetics/uf-ddiclient.svg?branch=master"></a>
 <a href="https://codeclimate.com/github/Kynetics/uf-ddiclient/maintainability"><img src="https://api.codeclimate.com/v1/badges/e545d9c1d9256241e7f8/maintainability" /></a>
