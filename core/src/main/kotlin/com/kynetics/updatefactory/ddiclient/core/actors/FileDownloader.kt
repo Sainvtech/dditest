@@ -134,7 +134,7 @@ private constructor(
         queue: ArrayBlockingQueue<Double>,
         actionId: String
     ): Timer {
-        return fixedRateTimer("Download Checker ${fileToDownload.fileName}", false, 60_000, 60_000) {
+        return fixedRateTimer("Download Checker ${fileToDownload.fileName}", false, 1_000, 1_000) {
             launch {
                 val progress = inputStream.getProgress()
                 val limit = queue.peek() ?: 1.0
