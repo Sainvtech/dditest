@@ -77,8 +77,11 @@ private constructor(
                 parent!!.send(Message.Info(channel, fileToDownload.md5, errorMessage))
                 notificationManager.send(MessageListener.Message.Event.Error(listOf(errorMessage, "Remaining attempts: ${state.remainingAttempts}")))
                 val newState = state.copy(remainingAttempts = state.remainingAttempts - 1, errors = state.errors + msg.cause)
-                become(downloading(newState))
-                tryDownload(newState)
+                launch {
+                    delay(30_000) 
+                    become(downloading(newState))
+                    tryDownload(newState)
+                }
             }
 
             is Message.Stop -> this.cancel()
