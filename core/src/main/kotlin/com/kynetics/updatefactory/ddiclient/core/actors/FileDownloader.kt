@@ -20,6 +20,7 @@ import java.util.Timer
 import java.util.concurrent.ArrayBlockingQueue
 import kotlin.concurrent.fixedRateTimer
 import kotlinx.coroutines.ObsoleteCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @UseExperimental(ObsoleteCoroutinesApi::class)
@@ -78,7 +79,7 @@ private constructor(
                 notificationManager.send(MessageListener.Message.Event.Error(listOf(errorMessage, "Remaining attempts: ${state.remainingAttempts}")))
                 val newState = state.copy(remainingAttempts = state.remainingAttempts - 1, errors = state.errors + msg.cause)
                 launch {
-                    delay(30_000) 
+                    delay(30000) 
                     become(downloading(newState))
                     tryDownload(newState)
                 }
