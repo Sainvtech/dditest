@@ -34,6 +34,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
     private val client: DdiClient = coroutineContext[UFClientContext]!!.ddiClient
     private val notificationManager = coroutineContext[NMActor]!!.ref
     private val configDataProvider = coroutineContext[UFClientContext]!!.configDataProvider
+    private val TAG = "Custom_ConnectionManager"
 
     private fun stoppedReceive(state: State): Receive = { msg ->
         when (msg) {
@@ -74,6 +75,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
 
             is In.DeploymentFeedback -> {
                 exceptionHandler(state) {
+                    LOG.debug("$TAG: Deployment Feedback : ${state} ${msg.feedback.id} ${msg.feedback}")
                     client.postDeploymentActionFeedback(msg.feedback.id, msg.feedback)
                 }
             }
@@ -180,10 +182,12 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
     }
 
     private suspend fun send(msg: Out, state: State) {
+        LOG.debug("$TAG: send function ${msg} $state")
         state.receivers.forEach { it.send(msg) }
     }
 
     init {
+        LOG.debug("$TAG: inside init -> become stoppedReceiver")
         become(stoppedReceive(State()))
     }
 
