@@ -75,7 +75,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
 
             is In.DeploymentFeedback -> {
                 exceptionHandler(state) {
-                    LOG.debug("$TAG: Deployment Feedback : ${state} ${msg.feedback.id} ${msg.feedback}")
+                    LOG.debug(TAG," Deployment Feedback : ${state} ${msg.feedback.id} ")
                     client.postDeploymentActionFeedback(msg.feedback.id, msg.feedback)
                 }
             }
@@ -103,14 +103,18 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
     private suspend fun onControllerBaseChange(state: State, s: State, res: CtrlBaseResp, newControllerBaseEtag: String) {
         if (res.requireConfigData() || !configDataProvider.isUpdated()) {
             this.send(Out.ConfigDataRequired, state)
+            LOG.debug(TAG," inside onControllerBaseChange fun -> res.requireConfigData() || !configDataProvider.isUpdated()  ")
+
         }
 
         var actionFound = false
         var etag = state.deploymentEtag
         if (res.requireDeployment()) {
+            LOG.debug(TAG," inside onControllerBaseChange fun -> res.requireDeployment() ")
             notificationManager.send(MessageListener.Message.Event.UpdateAvailable(res.deploymentActionId()))
             client.onDeploymentActionDetailsChange(res.deploymentActionId(), 0, state.deploymentEtag) { deplBaseResp, newDeploymentEtag ->
                 etag = newDeploymentEtag
+                LOG.debug(TAG," inside onControllerBaseChange fun -> res.requireDeployment() -> onDeploymentActionDetailsChange")
                 this.send(Out.DeploymentInfo(deplBaseResp, state.deploymentEtag.isEmpty()), state)
             }
             actionFound = true
@@ -182,12 +186,12 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
     }
 
     private suspend fun send(msg: Out, state: State) {
-        LOG.debug("$TAG: send function ${msg} $state")
+        LOG.debug(TAG," send function")
         state.receivers.forEach { it.send(msg) }
     }
 
     init {
-        LOG.debug("$TAG: inside init -> become stoppedReceiver")
+        LOG.debug(TAG,"inside init -> become stoppedReceiver")
         become(stoppedReceive(State()))
     }
 

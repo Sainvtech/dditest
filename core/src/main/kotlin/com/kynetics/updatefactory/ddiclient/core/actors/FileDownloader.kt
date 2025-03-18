@@ -16,12 +16,12 @@ import com.kynetics.updatefactory.ddiclient.core.inputstream.FilterInputStreamWi
 import com.kynetics.updatefactory.ddiclient.core.md5
 import java.io.File
 import java.text.NumberFormat
-import java.util.Timer
 import java.util.concurrent.ArrayBlockingQueue
 import kotlin.concurrent.fixedRateTimer
 import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Timer
 
 @UseExperimental(ObsoleteCoroutinesApi::class)
 class FileDownloader
@@ -35,7 +35,6 @@ private constructor(
     private val client: DdiClient = coroutineContext[UFClientContext]!!.ddiClient
     private val notificationManager = coroutineContext[NMActor]!!.ref
     private val connectionManager = coroutineContext[CMActor]!!.ref
-    private var timer: Timer? = null
     private val TAG = "Custom_FileDownload"
 
 
@@ -43,7 +42,7 @@ private constructor(
         when (msg) {
 
             is Message.Start -> {
-                LOG.debug("$TAG: State $state")
+                LOG.debug(TAG,"State $state")
                 become(downloading(state))
                 if (fileToDownload.destination.exists()) {
                     channel.send(Message.FileDownloaded)
@@ -64,18 +63,17 @@ private constructor(
         when (msg) {
 
             is Message.FileDownloaded -> {
-                LOG.debug("$TAG: downloading -> Message.FileDownloaded -> ${msg}")
+                LOG.debug(TAG,"downloading -> Message.FileDownloaded -> ${msg}")
                 checkMd5OfDownloadedFile()
             }
 
             is Message.FileChecked -> {
-                LOG.debug("$TAG: Message.FileChecked ${fileToDownload.md5} ${fileToDownload.fileName}")
+                LOG.debug(TAG,"Message.FileChecked ${fileToDownload.md5} ${fileToDownload.fileName}")
                 parent!!.send(Message.Success(channel, fileToDownload.md5))
                 notificationManager.send(MessageListener.Message.Event.FileDownloaded(fileToDownload.fileName))
             }
 
             is Message.TrialExhausted -> {
-                timer?.cancel()
                 val errors = state.errors.toMutableList()
                 errors.add(0, "trials exhausted due to errors (${fileToDownload.fileName})")
                 parent!!.send(Message.Error(channel, fileToDownload.md5, errors))
@@ -124,10 +122,10 @@ private constructor(
 
     private suspend fun download(actionId: String) {
         val file = fileToDownload.tempFile
-        LOG.debug("$TAG: fun download ${file.name}")
+        LOG.debug(TAG," fun download ${file.name}")
         if (file.exists()) {
             file.delete()
-            LOG.debug("$TAG: file exist --> file.delete()")
+            LOG.debug(TAG,"file exist --> file.delete()")
         }
 
         val inputStream = FilterInputStreamWithProgress(client.downloadArtifact(fileToDownload.url), fileToDownload.size)
@@ -149,8 +147,7 @@ private constructor(
         queue: ArrayBlockingQueue<Double>,
         actionId: String
     ): Timer {
-        timer?.cancel()
-        timer = fixedRateTimer("Download Checker ${fileToDownload.fileName}", false, 1_000, 1_000) {
+        return fixedRateTimer("Download Checker ${fileToDownload.fileName}", false, 1_000, 1_000) {
             launch {
                 val progress = inputStream.getProgress()
                 val limit = queue.peek() ?: 1.0
@@ -168,7 +165,6 @@ private constructor(
                 notificationManager.send(MessageListener.Message.Event.DownloadProgress(fileToDownload.fileName, progress))
             }
         }
-        return timer!!
     }
 
     private suspend fun feedback(id: String, execution: DeplFdbkReq.Sts.Exc, progress: DeplFdbkReq.Sts.Rslt.Prgrs, finished: DeplFdbkReq.Sts.Rslt.Fnsh, vararg messages: String) {
@@ -181,9 +177,11 @@ private constructor(
             var fileAlreadyDownloaded = false
             val file = if(fileToDownload.destination.exists()){
                 LOG.info("${fileToDownload.fileName} already downloaded. Checking md5...")
+                LOG.debug(TAG," inside -> checkMd5OfDownloadedFile fun $fileAlreadyDownloaded")
                 fileAlreadyDownloaded = true
                 fileToDownload.destination
             } else {
+                LOG.debug(TAG," inside -> checkMd5OfDownloadedFile fun  $fileAlreadyDownloaded ")
                 fileToDownload.tempFile
             }
 
@@ -192,13 +190,13 @@ private constructor(
             when {
 
                 fileAlreadyDownloaded && md5CheckResult -> {
-                    LOG.debug("$TAG: fileAlreadyDownloaded && md5CheckResult -> ${fileToDownload.md5},${fileToDownload.fileName}")
+                    LOG.debug(TAG," fileAlreadyDownloaded && md5CheckResult -> ${fileToDownload.md5},${fileToDownload.fileName}")
                     parent!!.send(Message.AlreadyDownloaded(channel, fileToDownload.md5))
                 }
 
                 !fileAlreadyDownloaded && md5CheckResult -> {
                     fileToDownload.onFileSaved()
-                    LOG.debug("$TAG: !fileAlreadyDownloaded && md5CheckResult -> ${fileToDownload.md5},${fileToDownload.fileName} ${Message.FileChecked}")
+                    LOG.debug(TAG," !fileAlreadyDownloaded && md5CheckResult -> ${fileToDownload.md5},${fileToDownload.fileName} ")
                     channel.send(Message.FileChecked)
                 }
 
@@ -211,7 +209,7 @@ private constructor(
 
     init {
         become(beforeStart(State(attempts, actionId)))
-        LOG.debug("$TAG: Inside init -> become -> before start $attempts $actionId")
+        LOG.debug("TAG,Inside init -> become -> before start $attempts $actionId")
     }
 
     companion object {

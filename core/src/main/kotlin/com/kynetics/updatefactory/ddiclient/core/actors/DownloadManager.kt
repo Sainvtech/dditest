@@ -50,13 +50,13 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
         when (msg) {
 
             is DeploymentInfo -> {
-                LOG.debug("$TAG: inside -> beforeStartReceive ->DeploymentInfo clean ${msg.info.id} ")
+                LOG.debug(TAG,"inside -> beforeStartReceive ->DeploymentInfo clean ${msg.info.id} ")
                 clean(msg.info.id)
                 val md5s = md5OfFilesToBeDownloaded(msg.info)
-                LOG.debug("$TAG: inside -> beforeStartReceive ->DeploymentInfo  ${md5s} ")
+                LOG.debug(TAG,"inside -> beforeStartReceive ->DeploymentInfo  ${md5s} ")
 
                 if (md5s.isNotEmpty()) {
-                    LOG.debug("$TAG: inside -> downloading artifacts ${msg.info.id} ")
+                    LOG.debug(TAG," inside -> downloading artifacts ${msg.info.id} ")
 
                     notificationManager.send(
                             MessageListener.Message.State.Downloading(
@@ -83,12 +83,12 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
         when (msg) {
 
             is FileDownloader.Companion.Message.Success -> {
-                LOG.debug("$TAG: inside -> downloadingReceive  Success ${msg.md5} ")
+                LOG.debug(TAG," inside -> downloadingReceive  Success ${msg.md5} ")
                 processMessage(state, msg.md5, Status.SUCCESS, "successfully downloaded file with md5 ${msg.md5}")
             }
 
             is FileDownloader.Companion.Message.AlreadyDownloaded -> {
-                LOG.debug("$TAG: inside -> downloadingReceive  AlreadyDownloaded ${msg.md5} ")
+                LOG.debug(TAG,"inside -> downloadingReceive  AlreadyDownloaded ${msg.md5} ")
                 processMessage(state, msg.md5, Status.SUCCESS, "${msg.md5} already downloaded")
             }
 
@@ -114,7 +114,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
                 downloads.count { it.state.status == Status.SUCCESS })
         when {
             downloads.any { it.state.status == Status.RUNNING } -> {
-                LOG.debug("$TAG: inside -> progressmessage  Running status -> $state $status")
+                LOG.debug(TAG," inside -> progressmessage  Running status -> $state $status")
                 feedback(state.deplBaseResp.id, proceeding, progress, none, message)
                 become(downloadingReceive(newState))
             }
@@ -125,7 +125,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
                 parent!!.send(DownloadFailed(listOf(message)))
             }
             else -> {
-                LOG.debug("$TAG: inside -> progressmessage  success down all files ")
+                LOG.debug(TAG,"inside -> progressmessage  success down all files ")
                 feedback(state.deplBaseResp.id, proceeding, progress, none, message)
                 feedback(state.deplBaseResp.id, proceeding, progress, none, "successfully downloaded all files")
                 newState.downloads.values.forEach { it.downloader.close() }
@@ -181,7 +181,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
 
     init {
         become(beforeStartReceive())
-        LOG.debug("$TAG: DownloadManager -> inside init ,become ->before start ")
+        LOG.debug(TAG,"DownloadManager -> inside init ,become ->before start ")
     }
 
     companion object {

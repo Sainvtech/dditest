@@ -40,41 +40,40 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
         suspend fun attempt(msg: DeploymentInfo) {
             val message = "Waiting authorization to download"
             LOG.info(message)
-            LOG.debug("$TAG: inside attempt fun  -> ${message}")
+            LOG.debug(TAG,"inside attempt fun  -> ${message}")
             sendFeedback(message)
             become(waitingDownloadAuthorization(state.copy(deplBaseResp = msg.info)))
             notificationManager.send(MessageListener.Message.State.WaitingDownloadAuthorization)
             waitingAuthJob?.cancel()
-            LOG.debug("$TAG: inside attempt fun  -> waitingAuthJob?.cancel()")
+            LOG.debug(TAG,"inside attempt fun  -> waitingAuthJob?.cancel()")
             waitingAuthJob = launch {
                 val result = authRequest.downloadAllowed().await()
                 if (result) {
-                    LOG.debug("$TAG: inside attempt fun  -> auth allowed for download files")
+                    LOG.debug(TAG," inside attempt fun  -> auth allowed for download files")
                     channel.send(Message.DownloadGranted)
                 } else {
                     LOG.info("Authorization denied for download files")
-                    LOG.debug("$TAG: inside attempt fun  -> auth denied for download files")
+                    LOG.debug(TAG," inside attempt fun  -> auth denied for download files")
                 }
                 waitingAuthJob = null
-                LOG.debug("$TAG: inside attempt fun  ->  waitingAuthJob = null")
+                LOG.debug(TAG," inside attempt fun  ->  waitingAuthJob = null")
             }
         }
 
         when {
 
             msg is DeploymentInfo && msg.downloadIs(Appl.forced)  -> {
-                LOG.debug("$TAG: DeploymentInfo && msg.downloadIs(Appl.forced) ${msg.info}")
+                LOG.debug(TAG," DeploymentInfo && msg.downloadIs(Appl.forced)")
                 become(downloadingReceive(state.copy(deplBaseResp = msg.info)))
                 child("downloadManager")!!.send(msg)
             }
 
             msg is DeploymentInfo && msg.downloadIs(Appl.attempt) -> {
-                LOG.debug("$TAG: DeploymentInfo && msg.downloadIs(Appl.attempt) -> ${msg.info}")
+                LOG.debug(TAG," DeploymentInfo && msg.downloadIs(Appl.attempt) ")
                 attempt(msg)
             }
 
             msg is DeploymentInfo && msg.downloadIs(Appl.skip) -> {
-                LOG.debug("$TAG: DeploymentInfo && msg.downloadIs(Appl.skip) -> ${msg.info}")
                 LOG.warn("skip download not yet implemented (used attempt)")
                 attempt(msg)
             }
@@ -91,11 +90,11 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
         when {
 
             msg is DeploymentInfo && msg.downloadIs(Appl.attempt) && !msg.forceAuthRequest -> {
-                LOG.debug("$TAG : Inside waitingDownloadAuthorizationmsg.downloadIs(Appl.attempt) && !msg.forceAuthRequest ->  ${msg}")
+                LOG.debug(TAG," Inside waitingDownloadAuthorizationmsg.downloadIs(Appl.attempt) && !msg.forceAuthRequest  ${msg.forceAuthRequest}")
             }
 
             msg is DeploymentInfo -> {
-                LOG.debug("$TAG : DeploymentInfo ->  ${msg}")
+                LOG.debug(TAG," DeploymentInfo ")
                 become(beginningReceive(state))
                 channel.send(msg)
             }
@@ -103,7 +102,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
             msg is Message.DownloadGranted -> {
                 val message = "Authorization granted for downloading files"
                 LOG.info(message)
-                LOG.debug("$TAG : Message.DownloadGranted ->  ${message.toString()}")
+                LOG.debug(TAG,"Message.DownloadGranted ")
                 sendFeedback(message)
                 become(downloadingReceive(state))
                 child("downloadManager")!!.send(DeploymentInfo(state.deplBaseResp!!))
@@ -126,7 +125,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
 
             msg is Message.DownloadFinished && state.updateIs(Appl.forced) -> {
                 become(updatingReceive())
-                LOG.debug("$TAG : downloadingReceive -> DownloadFinished && state.updateIs(Appl.forced) -> $msg  ")
+                LOG.debug(TAG," downloadingReceive -> DownloadFinished && state.updateIs(Appl.forced) ")
                 child("updateManager")!!.send(DeploymentInfo(state.deplBaseResp!!))
             }
 
@@ -134,16 +133,16 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
                 val message = "Waiting authorization to update"
                 LOG.info(message)
                 sendFeedback(message)
-                LOG.debug("$TAG : downloadingReceive -> DownloadFinished && state.updateIs(Appl.attempt) -> $msg  ")
+                LOG.debug(TAG," downloadingReceive -> DownloadFinished && state.updateIs(Appl.attempt)")
                 become(waitingUpdateAuthorization(state))
                 notificationManager.send(MessageListener.Message.State.WaitingUpdateAuthorization)
                 waitingAuthJob = launch(Dispatchers.IO) {
                     if (authRequest.updateAllowed().await()) {
                         channel.send(Message.UpdateGranted)
-                        LOG.debug("$TAG : downloadingReceive ->DownloadFinished && state.updateIs(Appl.attempt) ->  update allow  $msg  ")
+                        LOG.debug(TAG," downloadingReceive ->DownloadFinished && state.updateIs(Appl.attempt) ->  update allow")
 
                     } else {
-                        LOG.debug("$TAG : downloadingReceive ->DownloadFinished && state.updateIs(Appl.attempt) ->  update denide $msg  ")
+                        LOG.debug(TAG," downloadingReceive ->DownloadFinished && state.updateIs(Appl.attempt) ->  update denide")
                         LOG.info("Authorization denied for update")
                     }
                     waitingAuthJob = null
@@ -171,7 +170,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
         when (msg) {
 
             is DeploymentInfo -> {
-                LOG.debug("$TAG : waitingUpdateAuthorization ->DeploymentInfo  $msg  ")
+                LOG.debug(TAG," waitingUpdateAuthorization ->DeploymentInfo")
                 become(downloadingReceive(state.copy(deplBaseResp = msg.info)))
                 channel.send(Message.DownloadFinished)
             }
@@ -180,7 +179,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
                 val message = "Authorization granted for update"
                 LOG.info(message)
                 sendFeedback(message)
-                LOG.debug("$TAG : waitingUpdateAuthorization ->Message.UpdateGranted -> update granted  $msg  ")
+                LOG.debug(TAG," waitingUpdateAuthorization ->Message.UpdateGranted -> update granted")
                 become(updatingReceive())
                 child("updateManager")!!.send(DeploymentInfo(state.deplBaseResp!!))
             }
@@ -206,7 +205,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
             }
 
             is Message.UpdateFinished -> {
-                LOG.debug("$TAG : updatingReceive ->Message.UpdateFinished -> update finished  $msg  ")
+                LOG.debug(TAG," updatingReceive ->Message.UpdateFinished -> update finished ")
                 LOG.info("update finished")
                 parent!!.send(msg)
             }
@@ -246,6 +245,7 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
     }
 
     init {
+        LOG.debug(TAG," Deploymanager -> init")
         actorOf("downloadManager") { DownloadManager.of(it) }
         actorOf("updateManager") { UpdateManager.of(it) }
         become(beginningReceive(State()))
@@ -255,7 +255,6 @@ private constructor(scope: ActorScope) : AbstractActor(scope) {
     }
 
     private suspend fun sendFeedback(id: String, vararg messages: String) {
-        LOG.debug("$TAG : sendFeedback -> $id and $messages")
         connectionManager.send(
             ConnectionManager.Companion.Message.In.DeploymentFeedback(
                 DeplFdbkReq.newInstance(id,
