@@ -21,6 +21,8 @@ import java.util.concurrent.ArrayBlockingQueue
 import kotlin.concurrent.fixedRateTimer
 import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.launch
+import java.io.FileOutputStream
+import java.io.IOException
 
 @UseExperimental(ObsoleteCoroutinesApi::class)
 class FileDownloader
@@ -96,6 +98,9 @@ private constructor(
                     download(state.actionId)
                     channel.send(Message.FileDownloaded)
                 } catch (t: Throwable) {
+                    if (fileToDownload.tempFile.exists()) {
+                        fileToDownload.tempFile.delete()
+                    }
                     channel.send(Message.RetryDownload("exception: ${t.javaClass.simpleName}. message: ${t.message}"))
                     LOG.warn("Failed to download file ${fileToDownload.fileName}", t)
                 }
@@ -111,22 +116,37 @@ private constructor(
 
     private suspend fun download(actionId: String) {
         val file = fileToDownload.tempFile
-        if (file.exists()) {
-            file.delete()
+        val existingBytes = if (file.exists()) file.length() else 0L
+        val headers = mutableMapOf<String, String>().apply {
+            if (existingBytes > 0) {
+                put("Range", "bytes=$existingBytes-")
+            }
         }
 
-        val inputStream = FilterInputStreamWithProgress(client.downloadArtifact(fileToDownload.url), fileToDownload.size)
+        val inputStream = FilterInputStreamWithProgress(
+            client.downloadArtifact(fileToDownload.url, headers),
+            fileToDownload.size,
+            existingBytes
+        )
 
         val queue = ArrayBlockingQueue<Double>(10, true, (1..9).map { it.toDouble() / 10 })
 
         val timer = checkDownloadProgress(inputStream, queue, actionId)
 
-        file.outputStream().use {
-            inputStream.copyTo(it)
-        }
+        try {
+            FileOutputStream(file, existingBytes > 0).use { output ->
+                inputStream.copyTo(output)
+            }
 
-        timer.purge()
-        timer.cancel()
+            // Verify we received the expected remaining bytes
+            val totalReceived = existingBytes + inputStream.getBytesRead()
+            if (totalReceived != fileToDownload.size) {
+                throw IOException("Incomplete download. Received $totalReceived/${fileToDownload.size} bytes")
+            }
+        } finally {
+            timer.purge()
+            timer.cancel()
+        }
     }
 
     private fun checkDownloadProgress(

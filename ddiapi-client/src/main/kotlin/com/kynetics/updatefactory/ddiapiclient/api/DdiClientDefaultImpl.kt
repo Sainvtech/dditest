@@ -96,7 +96,7 @@ class DdiClientDefaultImpl private constructor(private val ddiRestApi: DdiRestAp
         ddiRestApi.postCancelActionFeedback(tenant, controllerId, actionId, feedback).await()
     }
 
-    override suspend fun downloadArtifact(url: String): InputStream {
+    override suspend fun downloadArtifact(url: String, headers: MutableMap<String, String>): InputStream {
         LOG.debug("downloadArtifact({})", url)
         return ddiRestApi.downloadArtifact(url).await().byteStream()
     }

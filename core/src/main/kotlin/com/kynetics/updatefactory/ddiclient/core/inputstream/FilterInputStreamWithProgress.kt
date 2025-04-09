@@ -13,37 +13,38 @@ import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 class FilterInputStreamWithProgress(
     inputStream: InputStream,
-    private val totalSize: Long
+    private val totalSize: Long,
+    existingBytes: Long,
+    private val initialOffset: Long = 0
 ) : FilterInputStream(inputStream) {
 
-    private var alreadyRead: AtomicInteger = AtomicInteger(0)
+    private val bytesRead = AtomicLong(initialOffset)
 
     @Throws(IOException::class)
     override fun read(): Int {
-        try {
-            val count = this.`in`.read()
-            alreadyRead.addAndGet(count)
-            return count
-        } catch (e: IOException) {
-            throw e
+        val result = super.read()
+        if (result != -1) {
+            bytesRead.incrementAndGet()
         }
+        return result
     }
 
     @Throws(IOException::class)
-    override fun read(var1: ByteArray, var2: Int, var3: Int): Int {
-        try {
-            val count = this.`in`.read(var1, var2, var3)
-            alreadyRead.addAndGet(count)
-            return count
-        } catch (e: IOException) {
-            throw e
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        val bytesReadCount = super.read(buffer, offset, length)
+        if (bytesReadCount != -1) {
+            bytesRead.addAndGet(bytesReadCount.toLong())
         }
+        return bytesReadCount
     }
 
     fun getProgress(): Double {
-        return alreadyRead.get().toDouble() / totalSize
+        if (totalSize <= 0) return 0.0
+        return bytesRead.get().toDouble() / totalSize
     }
+    fun getBytesRead(): Long = bytesRead.get()
 }
