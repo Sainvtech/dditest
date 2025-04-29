@@ -39,7 +39,6 @@ private constructor(
 
     private fun beforeStart(state: State): Receive = { msg ->
         when (msg) {
-
             is Message.Start -> {
                 become(downloading(state))
                 if (fileToDownload.destination.exists()) {
@@ -49,31 +48,24 @@ private constructor(
                     tryDownload(state)
                 }
             }
-
             is Message.Stop -> this.cancel()
-
             else -> unhandled(msg)
         }
     }
 
     private fun downloading(state: State): Receive = { msg ->
-
         when (msg) {
-
             is Message.FileDownloaded -> checkMd5OfDownloadedFile()
-
             is Message.FileChecked -> {
                 parent!!.send(Message.Success(channel, fileToDownload.md5))
                 notificationManager.send(MessageListener.Message.Event.FileDownloaded(fileToDownload.fileName))
             }
-
             is Message.TrialExhausted -> {
                 val errors = state.errors.toMutableList()
                 errors.add(0, "trials exhausted due to errors (${fileToDownload.fileName})")
                 parent!!.send(Message.Error(channel, fileToDownload.md5, errors))
                 notificationManager.send(MessageListener.Message.Event.Error(errors))
             }
-
             is Message.RetryDownload -> {
                 val errorMessage = "retry download due to: ${msg.cause}"
                 parent!!.send(Message.Info(channel, fileToDownload.md5, errorMessage))
@@ -82,9 +74,7 @@ private constructor(
                 become(downloading(newState))
                 tryDownload(newState)
             }
-
             is Message.Stop -> this.cancel()
-
             else -> unhandled(msg)
         }
     }
@@ -98,9 +88,6 @@ private constructor(
                     download(state.actionId)
                     channel.send(Message.FileDownloaded)
                 } catch (t: Throwable) {
-                    if (fileToDownload.tempFile.exists()) {
-                        fileToDownload.tempFile.delete()
-                    }
                     channel.send(Message.RetryDownload("exception: ${t.javaClass.simpleName}. message: ${t.message}"))
                     LOG.warn("Failed to download file ${fileToDownload.fileName}", t)
                 }
@@ -130,7 +117,6 @@ private constructor(
         )
 
         val queue = ArrayBlockingQueue<Double>(10, true, (1..9).map { it.toDouble() / 10 })
-
         val timer = checkDownloadProgress(inputStream, queue, actionId)
 
         try {
@@ -138,14 +124,13 @@ private constructor(
                 inputStream.copyTo(output)
             }
 
-            // Verify we received the expected remaining bytes
             val totalReceived = existingBytes + inputStream.getBytesRead()
             if (totalReceived != fileToDownload.size) {
                 throw IOException("Incomplete download. Received $totalReceived/${fileToDownload.size} bytes")
             }
         } finally {
-            timer.purge()
             timer.cancel()
+            timer.purge()
         }
     }
 
@@ -159,12 +144,13 @@ private constructor(
                 val progress = inputStream.getProgress()
                 val limit = queue.peek() ?: 1.0
                 if (progress > limit) {
-                    feedback(actionId,
-                            DeplFdbkReq.Sts.Exc.proceeding,
-                            DeplFdbkReq.Sts.Rslt.Prgrs(0, 0),
-                            DeplFdbkReq.Sts.Rslt.Fnsh.none,
-                            "Downloading file named ${fileToDownload.fileName} " +
-                                    "- ${progress.toPercentage(2)}")
+                    feedback(
+                        actionId,
+                        DeplFdbkReq.Sts.Exc.proceeding,
+                        DeplFdbkReq.Sts.Rslt.Prgrs(0, 0),
+                        DeplFdbkReq.Sts.Rslt.Fnsh.none,
+                        "Downloading file named ${fileToDownload.fileName} - ${progress.toPercentage(2)}"
+                    )
                     while (progress > queue.peek() ?: 1.0 && queue.isNotEmpty()) {
                         queue.poll()
                     }
@@ -174,7 +160,13 @@ private constructor(
         }
     }
 
-    private suspend fun feedback(id: String, execution: DeplFdbkReq.Sts.Exc, progress: DeplFdbkReq.Sts.Rslt.Prgrs, finished: DeplFdbkReq.Sts.Rslt.Fnsh, vararg messages: String) {
+    private suspend fun feedback(
+        id: String,
+        execution: DeplFdbkReq.Sts.Exc,
+        progress: DeplFdbkReq.Sts.Rslt.Prgrs,
+        finished: DeplFdbkReq.Sts.Rslt.Fnsh,
+        vararg messages: String
+    ) {
         val deplFdbkReq = DeplFdbkReq.newInstance(id, execution, progress, finished, *messages)
         connectionManager.send(ConnectionManager.Companion.Message.In.DeploymentFeedback(deplFdbkReq))
     }
@@ -182,7 +174,7 @@ private constructor(
     private suspend fun checkMd5OfDownloadedFile() {
         launch {
             var fileAlreadyDownloaded = false
-            val file = if(fileToDownload.destination.exists()){
+            val file = if (fileToDownload.destination.exists()) {
                 LOG.info("${fileToDownload.fileName} already downloaded. Checking md5...")
                 fileAlreadyDownloaded = true
                 fileToDownload.destination
@@ -193,19 +185,15 @@ private constructor(
             val md5 = file.md5()
             val md5CheckResult = md5 == fileToDownload.md5
             when {
-
                 fileAlreadyDownloaded && md5CheckResult -> {
                     parent!!.send(Message.AlreadyDownloaded(channel, fileToDownload.md5))
                 }
-
                 !fileAlreadyDownloaded && md5CheckResult -> {
                     fileToDownload.onFileSaved()
                     channel.send(Message.FileChecked)
                 }
-
-                file.delete() -> channel.send(Companion.Message.RetryDownload("Downloaded file (${fileToDownload.fileName}) has wrong md5 sum ($md5)"))
-
-                else -> channel.send(Companion.Message.RetryDownload("Can't remove file named ${file.name}"))
+                file.delete() -> channel.send(Message.RetryDownload("Downloaded file (${fileToDownload.fileName}) has wrong md5 sum ($md5)"))
+                else -> channel.send(Message.RetryDownload("Can't remove file named ${file.name}"))
             }
         }
     }
@@ -242,15 +230,12 @@ private constructor(
         )
 
         sealed class Message {
-
             object Start : Message()
             object Stop : Message()
-
             object FileDownloaded : Message()
             object FileChecked : Message()
             data class RetryDownload(val cause: String) : Message()
             object TrialExhausted : Message()
-
             data class Success(val sender: ActorRef, val md5: String) : Message()
             data class AlreadyDownloaded(val sender: ActorRef, val md5: String) : Message()
             data class Info(val sender: ActorRef, val md5: String, val message: String) : Message()
