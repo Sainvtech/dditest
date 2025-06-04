@@ -104,14 +104,22 @@ private constructor(
     private suspend fun download(actionId: String) {
         val file = fileToDownload.tempFile
         val existingBytes = if (file.exists()) file.length() else 0L
+        LOG.debug("DownloadDebug",  "Checking existing file: exists=${file.exists()}, size=$existingBytes")
+
         val headers = mutableMapOf<String, String>().apply {
             if (existingBytes > 0) {
-                put("Range", "bytes=$existingBytes-")
+                val range = "bytes=$existingBytes-"
+                put("Range", range)
+                LOG.debug("DownloadDebug", "Resuming with Range header: $range")
+            } else {
+                LOG.debug("DownloadDebug", "No existing file or size 0. Starting fresh download.")
             }
         }
 
         val inputStream = FilterInputStreamWithProgress(
-            client.downloadArtifact(fileToDownload.url, headers),
+            client.downloadArtifact(fileToDownload.url, headers).also {
+                LOG.debug("DownloadDebug", "Server responded. ContentLength: ${it.available()}")
+            },
             fileToDownload.size,
             existingBytes
         )
@@ -120,19 +128,28 @@ private constructor(
         val timer = checkDownloadProgress(inputStream, queue, actionId)
 
         try {
+            LOG.debug("DownloadDebug", "Starting to write to file: ${file.absolutePath}")
             FileOutputStream(file, existingBytes > 0).use { output ->
                 inputStream.copyTo(output)
             }
 
             val totalReceived = existingBytes + inputStream.getBytesRead()
+            LOG.debug("DownloadDebug", "Download complete. Total received: $totalReceived / ${fileToDownload.size}")
+
             if (totalReceived != fileToDownload.size) {
+                LOG.error("DownloadDebug", "Incomplete download. Throwing IOException.")
                 throw IOException("Incomplete download. Received $totalReceived/${fileToDownload.size} bytes")
             }
+        } catch (e: Exception) {
+            LOG.error("DownloadDebug", "Download failed: ${e.message}", e)
+            throw e
         } finally {
             timer.cancel()
             timer.purge()
+            LOG.debug("DownloadDebug", "Timer cancelled and purged.")
         }
     }
+
 
     private fun checkDownloadProgress(
         inputStream: FilterInputStreamWithProgress,
