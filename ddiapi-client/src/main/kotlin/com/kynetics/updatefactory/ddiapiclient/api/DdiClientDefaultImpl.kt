@@ -96,11 +96,21 @@ class DdiClientDefaultImpl private constructor(private val ddiRestApi: DdiRestAp
         ddiRestApi.postCancelActionFeedback(tenant, controllerId, actionId, feedback).await()
     }
 
-    override suspend fun downloadArtifact(url: String): InputStream {
-        LOG.debug("downloadArtifact({})", url)
-        return ddiRestApi.downloadArtifact(url).await().byteStream()
-    }
+    override suspend fun downloadArtifact(url: String, headers: MutableMap<String, String>): InputStream {
+        LOG.debug("downloadArtifact({}, headers: {})", url, headers)
 
+        val response = ddiRestApi.downloadArtifact(url, headers).await()
+
+        LOG.info("Status Code: {}", response.code())
+        LOG.info("Headers: {}", response.headers())
+        LOG.info("Successful: {}", response.isSuccessful)
+
+        if (!response.isSuccessful || response.body() == null) {
+            throw HttpException(response)
+        }
+
+        return response.body()!!.byteStream()
+    }
     private suspend fun <T> handleOnChangeResponse(response: Response<T>, etag: String, resourceName: String, onChange: OnResourceChange<T>) {
         when (response.code()) {
             in 200..299 -> {

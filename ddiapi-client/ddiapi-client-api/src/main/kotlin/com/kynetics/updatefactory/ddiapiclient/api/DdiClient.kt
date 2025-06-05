@@ -40,5 +40,5 @@ interface DdiClient {
 
     suspend fun putConfigData(data: CfgDataReq, onSuccessConfigData: () -> Unit)
 
-    suspend fun downloadArtifact(url: String): InputStream
+    suspend fun downloadArtifact(url: String,headers: MutableMap<String, String>): InputStream
 }

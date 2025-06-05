@@ -21,6 +21,8 @@ import java.util.concurrent.ArrayBlockingQueue
 import kotlin.concurrent.fixedRateTimer
 import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.launch
+import java.io.FileOutputStream
+import java.io.IOException
 
 @UseExperimental(ObsoleteCoroutinesApi::class)
 class FileDownloader
@@ -111,23 +113,57 @@ private constructor(
 
     private suspend fun download(actionId: String) {
         val file = fileToDownload.tempFile
-        if (file.exists()) {
-            file.delete()
+        val existingBytes = if (file.exists()) file.length() else 0L
+
+        val headers = mutableMapOf<String, String>().apply {
+            if (existingBytes > 0) {
+                val range = "bytes=$existingBytes-"
+                put("Range", range)
+                LOG.debug("Download - Resuming with Range header: $range")
+            } else {
+                LOG.debug("Download - No existing file or size 0. Starting fresh download.")
+            }
         }
 
-        val inputStream = FilterInputStreamWithProgress(client.downloadArtifact(fileToDownload.url), fileToDownload.size)
+        LOG.debug("Download - Requesting file from URL: ${fileToDownload.url}")
+
+        val responseStream = client.downloadArtifact(fileToDownload.url, headers)
+
+        LOG.debug("Download - Got response stream from server. Expected size: ${fileToDownload.size}, Already downloaded: $existingBytes")
+
+        val inputStream = FilterInputStreamWithProgress(
+            responseStream,
+            fileToDownload.size,
+            existingBytes
+        )
 
         val queue = ArrayBlockingQueue<Double>(10, true, (1..9).map { it.toDouble() / 10 })
-
         val timer = checkDownloadProgress(inputStream, queue, actionId)
 
-        file.outputStream().use {
-            inputStream.copyTo(it)
-        }
+        try {
+            LOG.debug("Download - Writing to file: ${file.absolutePath}, Append mode: ${existingBytes > 0}")
 
-        timer.purge()
-        timer.cancel()
+            FileOutputStream(file, existingBytes > 0).use { output ->
+                inputStream.copyTo(output)
+            }
+
+            val totalReceived = existingBytes + inputStream.getBytesRead()
+            LOG.info("Download - Completed download. Received: $totalReceived / ${fileToDownload.size}")
+
+            if (totalReceived != fileToDownload.size) {
+                LOG.error("Download - Incomplete download detected. Throwing IOException.")
+                throw IOException("Incomplete download. Received $totalReceived/${fileToDownload.size} bytes")
+            }
+        } catch (e: Exception) {
+            LOG.error("Download - Download failed: ${e.message}", e)
+            throw e
+        } finally {
+            timer.cancel()
+            timer.purge()
+            LOG.debug("Download - Timer cancelled and purged.")
+        }
     }
+
 
     private fun checkDownloadProgress(
         inputStream: FilterInputStreamWithProgress,
@@ -139,6 +175,7 @@ private constructor(
                 val progress = inputStream.getProgress()
                 val limit = queue.peek() ?: 1.0
                 if (progress > limit) {
+                    LOG.info("Progress: ${progress.toPercentage(2)}")
                     feedback(actionId,
                             DeplFdbkReq.Sts.Exc.proceeding,
                             DeplFdbkReq.Sts.Rslt.Prgrs(0, 0),
