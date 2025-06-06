@@ -131,6 +131,7 @@ private constructor(
 
         LOG.debug("Download - Got response stream from server. Expected size: ${fileToDownload.size}, Already downloaded: $existingBytes")
 
+
         val inputStream = FilterInputStreamWithProgress(
             responseStream,
             fileToDownload.size,
@@ -173,15 +174,19 @@ private constructor(
         return fixedRateTimer("Download Checker ${fileToDownload.fileName}", false, 1_000, 1_000) {
             launch {
                 val progress = inputStream.getProgress()
+                val total = fileToDownload.size
+                val received = inputStream.getBytesRead() + (fileToDownload.tempFile.takeIf { it.exists() }?.length() ?: 0L)
+                val remaining = total - received
                 val limit = queue.peek() ?: 1.0
                 if (progress > limit) {
-                    LOG.info("Progress: ${progress.toPercentage(2)}")
+                    LOG.info("Progress: ${progress.toPercentage(2)} | Downloaded: $received bytes | Remaining: $remaining bytes")
                     feedback(actionId,
-                            DeplFdbkReq.Sts.Exc.proceeding,
-                            DeplFdbkReq.Sts.Rslt.Prgrs(0, 0),
-                            DeplFdbkReq.Sts.Rslt.Fnsh.none,
-                            "Downloading file named ${fileToDownload.fileName} " +
-                                    "- ${progress.toPercentage(2)}")
+                        DeplFdbkReq.Sts.Exc.proceeding,
+                        DeplFdbkReq.Sts.Rslt.Prgrs(0, 0),
+                        DeplFdbkReq.Sts.Rslt.Fnsh.none,
+                        "Downloading: ${fileToDownload.fileName}",
+                        "Downloaded: $received / $total bytes (${progress.toPercentage(2)})",
+                        "Remaining: $remaining bytes")
                     while (progress > queue.peek() ?: 1.0 && queue.isNotEmpty()) {
                         queue.poll()
                     }

@@ -44,6 +44,10 @@ private val bytesRead =AtomicLong(initialOffset)
         }
                 return bytesReadCount
     }
+    @Throws(IOException::class)
+    override fun read(buffer: ByteArray): Int {
+        return read(buffer, 0, buffer.size)
+    }
 
     fun getProgress(): Double {
                 if (totalSize <= 0) return 0.0
