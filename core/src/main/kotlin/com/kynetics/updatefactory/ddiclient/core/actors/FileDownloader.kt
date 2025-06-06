@@ -173,12 +173,15 @@ private constructor(
     ): Timer {
         return fixedRateTimer("Download Checker ${fileToDownload.fileName}", false, 1_000, 1_000) {
             launch {
-                val progress = inputStream.getProgress()
+
+
                 val total = fileToDownload.size
                 val received = inputStream.getBytesRead() + (fileToDownload.tempFile.takeIf { it.exists() }?.length() ?: 0L)
                 val remaining = total - received
+                val progress = received.toDouble() / total * 100
                 val limit = queue.peek() ?: 1.0
                 if (progress > limit) {
+                    LOG.info("Progress1: ${String.format("%.2f", progress)}% } | Downloaded: $total bytes")
                     LOG.info("Progress: ${progress.toPercentage(2)} | Downloaded: $received bytes | Remaining: $remaining bytes")
                     feedback(actionId,
                         DeplFdbkReq.Sts.Exc.proceeding,
